@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<head>
+<meta charset="utf-8">
+
+<!-- D3.js -->	
+    <script src="https://d3js.org/d3.v3.js"></script>
+
+	
+	<!-- jQuery -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>	
+	
+	<!-- Underscore -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
+	
+	<script src="https://d3js.org/d3.geo.projection.v0.min.js"></script>
+	
+	<script src="leaflet.min.js"></script>
+	
+	<!-- Open Sans & CSS -->
+	<link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css'>
+	
+	<link href='leaflet.min.css' rel='stylesheet' type='text/css'>
+	
+	<script src="islands.js"></script>
+	<style>
+
+	body {
+		  font-family: 'Roboto', sans-serif;
+		  font-size: 14px;
+		  font-weight: 400;
+		  color: #525252;
+		  text-align: center;
+		}
+	.padding20{
+		padding:20px;
+	}
+	
+	#mapContainer{
+				width:100%;
+				height:700px;
+				margin-left:auto;
+				margin-right:auto;
+				margin-bottom:50px;
+	}
+
+	</style>
+</head>
+<body>
+<div class="container-fluid text-center">
+		<div class="row">
+			<div class="col-md-12 padding20">
+				<h3>Okinawa Bird Island Biogeography</h3>
+			</div>
+		</div>
+		
+		
+		
+		<div class="row">
+			<label for="island">Select an Island:</label>
+				<select type="" id="island" name="island">
+				</select>
+	       
+			<div id="mapContainer"></div>
+			<div id="metadata"></div>
+		 </div>
+</div>
+<script>
+
+
+
+			var southWest = L.latLng(23, 122),
+				northEast = L.latLng(29, 132),
+				bounds = L.latLngBounds(southWest, northEast);
+
+			var map = new L.Map("mapContainer", {
+						center: [27.7, 128], 
+						zoom: 7,
+						minZoom:5,
+						maxZoom:12
+					});
+		
+			var tile3 = L.tileLayer('http://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+					attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
+					});
+		
+				tile3.addTo(map);
+			
+		
+	
+			map.scrollWheelZoom.disable();
+			map.touchZoom.disable();
+			
+			var svg = d3.select(map.getPanes().overlayPane).append("svg"),
+			g = svg.append("g").attr("class", "leaflet-zoom-hide");
+			var okinawaPath =g.append("g");
+	
+
+			function projectPoint(x, y) {
+				var point = map.latLngToLayerPoint(new L.LatLng(y, x)); 
+				this.stream.point(point.x, point.y); 
+
+			}
+			var transform = d3.geo.transform({point: projectPoint}),
+				path = d3.geo.path().projection(transform);
+
+
+			
+		  	  
+		  
+				  okinawaPath.selectAll("path")
+					   .data(islands.features)
+					   .enter()
+					   .append("path")
+					   .attr("d", path)
+					   .attr("fill", '#3F454C')
+					   .classed('island',true)
+					   .attr('id',function(d){
+					   		return d.properties.Island_Gro;
+					   })
+					   .style("stroke","white")
+				   	   .style("stroke-width",0.5)
+				       .style("opacity",0.7)
+				       .on('mouseover',function(){
+				       		d3.select(this)
+				       		.style("opacity",0.4)
+				       		.style('cursor','pointer');
+				       })
+				       .on('mouseout',function(){
+				       		d3.select(this).style("opacity",0.7);
+				       })
+				       .on('click', function(d){
+				       		// console.log(d);
+				       		// console.log(this);
+				       		var name = d.properties.Island_Gro;
+				       		$("select#island").val(name);
+				       		zoomTo(name);
+				       		drawInfopanel(d);
+				       	
+				       });
+			 	
+			 	
+			 	
+			 	var bounds = path.bounds(islands),
+					topLeft = bounds[0],
+					bottomRight = bounds[1];
+				
+				 svg.attr("width", bottomRight[0] - topLeft[0])
+					.attr("height", bottomRight[1] - topLeft[1])
+					.style("left", topLeft[0] + "px")
+					.style("top", topLeft[1] + "px");
+
+				 g.attr("transform", "translate(" + -topLeft[0] + "," + -topLeft[1] + ")");
+			 	
+			 	
+			 	var islandArray = [];
+				$.each(islands.features, function(i, value) {
+					islandArray[i]=value.properties.Island_Gro;
+					 // $('#island').append($('<option>').text(value.properties.NAME_2).attr('value', value.properties.NAME_2));
+				});
+				
+				// console.log(islandArray);
+    			islandArray.sort();
+    			// console.log(islandArray);
+    			$.each(islandArray, function(i, value) {
+    				$('#island').append($('<option>').text(value).attr('value', value));
+    			});
+
+			 
+			 $('#island').change(function() {
+			 	var selected = $( "#island option:selected" ).text();
+				zoomTo(selected);
+				var selected_d;
+				islands.features.forEach(function(d){
+					if(selected ==d.properties.Island_Gro){
+						selected_d = d;
+					}
+					
+				});
+				
+				 drawInfopanel(selected_d);	
+			});
+			 
+			 
+			 function zoomTo(islandName){
+				var islandGeom = lookupIsland(islandName);
+				// console.log(islandGeom);
+				var bounds = path.bounds(islandGeom); // this is in pixels, not geographic coordinates
+			
+				var southWest = map.layerPointToLatLng([bounds[1][0],bounds[0][1]]);
+				var northEast = map.layerPointToLatLng([bounds[0][0],bounds[1][1]]);
+		
+				var leafletBounds = new L.LatLngBounds([southWest,northEast]);
+				map.fitBounds(leafletBounds, {maxZoom:10, animate:true});
+				
+				colorSelected(islandName);
+			
+			}
+			
+			
+			function getIslands(){
+				return g.selectAll('.island');
+			}
+
+			function lookupIsland(islandName){
+				var selectedPath;
+				
+				getIslands().each(function(d) {
+					if(d.properties.Island_Gro==islandName){
+						selectedPath = d;
+						// console.log(d);
+					}
+				});
+				
+				return selectedPath;
+			}
+			
+			function colorSelected(selectedID){
+				g.selectAll('.island').attr("fill", '#3F454C');
+				g.select('#'+selectedID).attr("fill",'#57BD91');
+				
+			}
+			
+			
+			function drawInfopanel(d,i){
+				d3.selectAll(".infopanel").remove();
+				var labelHTML = "<h2 class='page-header'>"+d.properties.Island_Gro+"</h2>";
+				var infolabel=d3.select("#metadata").append("div")
+					.attr("class","infopanel")
+					.attr("id", "infopanel-"+i)
+					.html(labelHTML);
+			}
+
+			 
+			 map.on("viewreset", resetView);
+			 
+			function resetView() {
+				if (islands) {
+					var bounds = path.bounds(islands),
+						topLeft = bounds[0],
+						bottomRight = bounds[1];
+				
+
+					svg.attr("width", bottomRight[0] - topLeft[0] + 1000)
+							.attr("height", bottomRight[1] - topLeft[1])
+							.style("left", topLeft[0] + "px")
+							.style("top", topLeft[1] + "px");
+
+					g.attr("transform", "translate(" + -topLeft[0] + "," + -topLeft[1] + ")");
+
+					okinawaPath.selectAll('path').attr("d", path);		
+				}
+			
+			}
+
+
+	
+	
+
+
+
+</script>
+</body>
+</html>
